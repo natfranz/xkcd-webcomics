@@ -21,8 +21,8 @@ default_args = {
 }
 @dag(
     default_args=default_args,
-    description='DAG to compare XKCD values',
-    schedule_interval='@daily',
+    description='DAG to extract XKCD data',
+    schedule_interval='59 23 * * 1,3,5',
     catchup=False
 )
 def get_xkcd_data():
@@ -44,6 +44,17 @@ def get_xkcd_data():
         cursor.close()
         conn.close()
         return last_value
+
+    def find_next_key():
+        conn = PostgresHook(postgres_conn_id='postgres_default').get_conn()
+        sql_query = "SELECT MAX(load_status_key) FROM etl.load_status"
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+        result = cursor.fetchone()
+        key_value = result[0]+1 if result[0] is not None else 0
+        cursor.close()
+        conn.close()
+        return key_value
 
     def get_data_from_xkcd(num):
         url = 'https://xkcd.com/' + str(num) + '/info.0.json'
@@ -109,26 +120,27 @@ def get_xkcd_data():
         df.drop(['month', 'year', 'day'], inplace=True, axis=1)
         return df
 
-    def load_to_db(table_name, schema_name, **kwargs):
+    def load_to_db(table_name, **kwargs):
         ti = kwargs['ti']
         df = ti.xcom_pull(task_ids='process_data')
-        print(df.head())
         try:
-            engine = PostgresHook(postgres_conn_id='postgres_default').get_sqlalchemy_engine()
             print("############### Loading to table : ", table_name)
-            df.to_sql(name=table_name, con=engine, schema=schema_name, if_exists='append', index=False, method='multi')
-        except SQLAlchemyError as e:
-            error_message = f"Error loading data to table {schema_name}.{table_name}: {str(e)}"
-            raise RuntimeError(error_message)
+            pg_hook = PostgresHook(postgres_conn_id='postgres_default')
+            pg_hook.insert_rows(table=table_name, rows=df.values.tolist())
+        except Exception as e:
+            print(f"Error occurred while loading data to PostgreSQL: {str(e)}")
+            raise e
 
-    def write_etl_status(table_name, schema_name, **kwargs):
+    def write_etl_status(table_name, **kwargs):
         ti = kwargs['ti']
         df = ti.xcom_pull(task_ids='process_data')
         rows = df.shape[0]
+        key = find_next_key()
         min_value = df['num'].min()
         max_value = df['num'].max()
         executed_at = datetime.utcnow()
         df = pd.DataFrame([{
+            'load_status_key': key,
             'table_name': table_name,
             'count_records': rows,
             'min_value': min_value,
@@ -136,12 +148,12 @@ def get_xkcd_data():
             'executed_at': executed_at
         }])
         try:
-            engine = PostgresHook(postgres_conn_id='postgres_default').get_sqlalchemy_engine()
-            print("############### Loading to table : ", table_name)
-            df.to_sql(name=table_name, con=engine, schema=schema_name, if_exists='append', index=False, method='multi')
-        except SQLAlchemyError as e:
-            error_message = f"Error loading data to table {schema_name}.{table_name}: {str(e)}"
-            raise RuntimeError(error_message)
+            print("############### Loading to table : etl.load_status")
+            pg_hook = PostgresHook(postgres_conn_id='postgres_default')
+            pg_hook.insert_rows(table='etl.load_status', rows=df.values.tolist())
+        except Exception as e:
+            print(f"Error occurred while loading data to PostgreSQL: {str(e)}")
+            raise e
 
     def comparison_result(**kwargs):
         ti = kwargs['ti']
@@ -184,14 +196,14 @@ def get_xkcd_data():
         task_id='load_to_db',
         provide_context=True,
         python_callable=load_to_db,
-        op_kwargs={'table_name': 'xkcd_records', 'schema_name': 'public'}
+        op_kwargs={'table_name': 'xkcd_records'}
     )
 
     write_etl_status_task = PythonOperator(
         task_id='write_etl_status',
         provide_context=True,
         python_callable=write_etl_status,
-        op_kwargs={'table_name': 'load_status', 'schema_name': 'etl'}
+        op_kwargs={'table_name': 'xkcd_records'}
     )
 
     end_pipeline = DummyOperator(
