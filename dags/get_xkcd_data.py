@@ -4,8 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
-import os
-from dotenv import load_dotenv
+
 
 from airflow import DAG
 from airflow.decorators import dag, task
@@ -110,32 +109,19 @@ def get_xkcd_data():
         df.drop(['month', 'year', 'day'], inplace=True, axis=1)
         return df
 
-    def get_credentials():
-        load_dotenv()
-        credentials = {'host': os.environ['host'], 'database': os.environ['database'], 'user': os.environ['user'],
-                       'password': os.environ['password'], 'port': os.environ['port']}
-        return credentials
-
     def load_to_db(table_name, schema_name, **kwargs):
         ti = kwargs['ti']
         df = ti.xcom_pull(task_ids='process_data')
         print(df.head())
         try:
-            credentials = get_credentials()
-            host = credentials['host']
-            database = credentials['database']
-            user = credentials['user']
-            password = credentials['password']
-            port = credentials['port']
-            params = f'postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}'
-            engine = create_engine(params, isolation_level='AUTOCOMMIT')
+            engine = PostgresHook(postgres_conn_id='postgres_default').get_sqlalchemy_engine()
             print("############### Loading to table : ", table_name)
             df.to_sql(name=table_name, con=engine, schema=schema_name, if_exists='append', index=False, method='multi')
         except SQLAlchemyError as e:
             error_message = f"Error loading data to table {schema_name}.{table_name}: {str(e)}"
             raise RuntimeError(error_message)
 
-    def write_etl_status(table_name, **kwargs):
+    def write_etl_status(table_name, schema_name, **kwargs):
         ti = kwargs['ti']
         df = ti.xcom_pull(task_ids='process_data')
         rows = df.shape[0]
@@ -149,8 +135,13 @@ def get_xkcd_data():
             'max_value': max_value,
             'executed_at': executed_at
         }])
-        print(df)
-        load_to_db('load_status', 'etl', df)
+        try:
+            engine = PostgresHook(postgres_conn_id='postgres_default').get_sqlalchemy_engine()
+            print("############### Loading to table : ", table_name)
+            df.to_sql(name=table_name, con=engine, schema=schema_name, if_exists='append', index=False, method='multi')
+        except SQLAlchemyError as e:
+            error_message = f"Error loading data to table {schema_name}.{table_name}: {str(e)}"
+            raise RuntimeError(error_message)
 
     def comparison_result(**kwargs):
         ti = kwargs['ti']
@@ -200,7 +191,7 @@ def get_xkcd_data():
         task_id='write_etl_status',
         provide_context=True,
         python_callable=write_etl_status,
-        op_kwargs={'table_name': 'xkcd_records'}
+        op_kwargs={'table_name': 'load_status', 'schema_name': 'etl'}
     )
 
     end_pipeline = DummyOperator(

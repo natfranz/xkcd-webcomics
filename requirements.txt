@@ -1,6 +1,8 @@
 # Astro Runtime includes the following pre-installed providers packages: https://docs.astronomer.io/astro/runtime-image-architecture#provider-packages
 
 requests~=2.31.0
+psycopg2-binary~=2.9.9
 pandas~=2.2.1
 SQLAlchemy~=1.4.52
-python-dotenv~=1.0.1
+
+#apache-airflow 2.9.0+astro.1 depends on sqlalchemy<2.0 and >=1.4.36
