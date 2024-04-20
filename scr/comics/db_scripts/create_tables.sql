@@ -10,7 +10,7 @@ CREATE TABLE etl.load_status (
 CREATE UNIQUE INDEX load_status_load_status_key ON etl.load_status USING btree (load_status_key);
 
 
-CREATE TABLE public.xkcd_records (
+CREATE TABLE public.xkcd_webcomics (
 	num int8 NOT NULL,
 	safe_title text NULL,
 	transcript text NULL,
@@ -24,7 +24,7 @@ CREATE TABLE public.xkcd_records (
 	total_views int8 NULL,
 	CONSTRAINT xkcd_records_pkey PRIMARY KEY (num)
 );
-CREATE UNIQUE INDEX xkcd_records_num ON public.xkcd_records USING btree (num);
+CREATE UNIQUE INDEX xkcd_records_num ON public.xkcd_webcomics USING btree (num);
 
 
 create table public.reviews (
@@ -36,7 +36,7 @@ create table public.reviews (
 	primary key (review_id),
 	constraint fk_reviews
       foreign key (num)
-        references xkcd_records(num)
+        references public.xkcd_webcomics(num)
 );
 CREATE UNIQUE INDEX reviews_review_id ON public.reviews USING btree (review_id);
 CREATE INDEX reviews_num_date ON public.reviews USING btree (num, review_date);
@@ -49,7 +49,7 @@ CREATE TABLE public.daily_views (
 	views_count int8 null,
 	snapshot_date date null,
 	CONSTRAINT daily_views_pkey PRIMARY KEY (row_key),
-	CONSTRAINT fk_daily_views FOREIGN KEY (num) REFERENCES public.xkcd_records(num)
+	CONSTRAINT fk_daily_views FOREIGN KEY (num) REFERENCES public.xkcd_webcomics(num)
 );
 CREATE UNIQUE INDEX views_row_key ON public.daily_views USING btree (row_key);
 CREATE INDEX daily_views_num_date ON public.daily_views USING btree (num, view_date);
