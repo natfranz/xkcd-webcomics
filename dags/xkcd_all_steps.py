@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-
 from airflow import DAG
 from airflow.decorators import dag, task
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
@@ -18,14 +17,15 @@ default_args = {
     'retries': 0,
     'retry_delay': timedelta(minutes=5),
 }
+
+
 @dag(
     default_args=default_args,
     description='DAG to extract XKCD data',
     schedule_interval='59 23 * * 1,3,5',
     catchup=False
 )
-def get_xkcd_data():
-
+def get_test_one():
     def find_max_value():
         url = 'https://xkcd.com/info.0.json'
         header = {'Content-Type': 'application/json'}
@@ -50,7 +50,7 @@ def get_xkcd_data():
         cursor = conn.cursor()
         cursor.execute(sql_query)
         result = cursor.fetchone()
-        key_value = result[0]+1 if result[0] is not None else 0
+        key_value = result[0] + 1 if result[0] is not None else 0
         cursor.close()
         conn.close()
         return key_value
@@ -208,54 +208,6 @@ def get_xkcd_data():
         cursor.close()
         conn.close()
 
-    fetch_max_value = PythonOperator(
-        task_id='fetch_max_value',
-        python_callable=find_max_value,
-    )
-
-    fetch_last_value = PythonOperator(
-        task_id='fetch_last_value',
-        python_callable=find_last_value,
-    )
-
-    branching = BranchPythonOperator(
-        task_id='branching',
-        provide_context=True,
-        python_callable=comparison_result,
-    )
-
-    ingest_xkcd_data = PythonOperator(
-        task_id='fetch_xkcd_data_loop',
-        provide_context=True,
-        python_callable=fetch_xkcd_data_loop
-    )
-
-    process_data_task = PythonOperator(
-        task_id='process_data',
-        provide_context=True,
-        python_callable=process_data,
-    )
-
-    load_to_db_task = PythonOperator(
-        task_id='load_to_db',
-        provide_context=True,
-        python_callable=load_to_db,
-        op_kwargs={'table_name': 'xkcd_webcomics'}
-    )
-
-    write_etl_status_task = PythonOperator(
-        task_id='write_etl_status',
-        provide_context=True,
-        python_callable=write_etl_status,
-        op_kwargs={'table_name': 'xkcd_webcomics'}
-    )
-
-    generate_reviews_data = PythonOperator(
-        task_id='generate_reviews_data',
-        provide_context=True,
-        python_callable=generate_ratings,
-        op_kwargs={'table_name': 'reviews'}
-    )
 
     update_xkcd_table = PythonOperator(
         task_id='update_xkcd_table_values',
@@ -267,12 +219,7 @@ def get_xkcd_data():
         task_id='end_pipeline',
     )
 
-    fetch_max_value >> fetch_last_value >> branching
+    update_xkcd_table >> end_pipeline
 
-    branching >> ingest_xkcd_data
 
-    ingest_xkcd_data >> process_data_task >> load_to_db_task >> write_etl_status_task >> generate_reviews_data >> update_xkcd_table >> end_pipeline
-
-    branching >> end_pipeline
-
-dag = get_xkcd_data()
+dag = get_test_one()

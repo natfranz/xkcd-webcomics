@@ -1,6 +1,4 @@
 import psycopg2
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
