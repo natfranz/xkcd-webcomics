@@ -32,7 +32,7 @@ def find_max_value():
 
 def find_last_value():
     conn = connect_db()
-    sql_query = "select max(max_value) from etl.load_status where table_name='xkcd_records'"
+    sql_query = "select max(max_value) from etl.load_status where table_name='xkcd_webcomics'"
     cursor = conn.cursor()
     cursor.execute(sql_query)
     result = cursor.fetchone()
@@ -50,7 +50,9 @@ def write_etl_status(df, table_name):
     min_value = df['num'].min()
     max_value = df['num'].max()
     executed_at = datetime.utcnow()
+    procedure_name = 'get_xkcd_data'
     df = pd.DataFrame([{
+        'procedure_name': procedure_name,
         'table_name': table_name,
         'count_records': rows,
         'min_value': min_value,
@@ -62,9 +64,13 @@ def write_etl_status(df, table_name):
 
 
 def validate_df(df):
-    expected_columns = ['month', 'num', 'link', 'year', 'news', 'safe_title', 'transcript', 'alt', 'img', 'title',
+    expected_columns = ['month', 'num', 'year', 'safe_title', 'transcript', 'alt', 'img', 'title',
                         'day']
     passed_columns = df.columns.tolist()
+
+    for col in expected_columns:
+        if (col in passed_columns) and (df[col].values == ''):
+            df[col] = None
 
     if expected_columns == passed_columns:
         # print('Check passed')
@@ -109,7 +115,7 @@ def main():
         df.drop(['month', 'year', 'day'], inplace=True, axis=1)
 
         # Load df to the db and update etl load status
-        table_name = 'xkcd_records'
+        table_name = 'xkcd_webcomics'
         schema_name = 'public'
         load_to_db(table_name, schema_name, df)
         write_etl_status(df, table_name)

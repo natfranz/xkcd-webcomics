@@ -7,7 +7,7 @@ from datetime import timedelta, datetime
 def get_sample_data():
     # Get the ids of the existing items in the db
     conn = connect_db()
-    sql_query = "select num , created_at from public.xkcd_records xr"
+    sql_query = "select num , created_at from public.xkcd_webcomics xr"
     df = pd.read_sql_query(sql_query, conn)
     conn.close()
 
