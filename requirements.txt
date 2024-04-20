@@ -3,7 +3,8 @@
 requests~=2.31.0
 psycopg2-binary~=2.9.9
 pandas~=2.2.1
-SQLAlchemy~=2.0.29
+pendulum
+# SQLAlchemy~=2.0.29
 # dotenv
 
 #apache-airflow 2.9.0+astro.1 depends on sqlalchemy<2.0 and >=1.4.36

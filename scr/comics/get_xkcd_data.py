@@ -88,7 +88,7 @@ def validate_df(df):
 
 
 def main():
-    last_value = 2921 # find_last_value()
+    last_value = find_last_value()
     max_value = find_max_value()
 
     # Check if there are any new records

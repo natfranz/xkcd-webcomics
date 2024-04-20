@@ -22,9 +22,9 @@ FROM public.reviews
 GROUP BY review_id
 HAVING COUNT(*) > 1;
 
-SELECT row_key, COUNT(*)
+SELECT num, view_date, COUNT(*)
 FROM public.daily_views
-GROUP BY row_key
+GROUP BY num, view_date
 HAVING COUNT(*) > 1;
 
 -- COMPLETENESS, are there any columns missing 90% of values or more

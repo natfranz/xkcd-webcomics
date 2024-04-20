@@ -26,9 +26,9 @@ def get_comic_ids():
 
 
 def main():
-    # Get a list of dates and
-    start_date = '2024-01-01'
-    end_date = '2024-01-05'
+    # Get a list of dates and comic ids. Dates are hardcoded to minimize the size of the dataset
+    start_date = '2024-01-06' # last loaded date
+    end_date = '2024-01-09' # datetime.date.today()
     dates_list = generate_dates(start_date, end_date)
     num_list = get_comic_ids()
 
