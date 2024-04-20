@@ -36,7 +36,7 @@ def get_xkcd_data():
 
     def find_last_value():
         conn = PostgresHook(postgres_conn_id='postgres_default').get_conn()
-        sql_query = "SELECT MAX(max_value) FROM etl.load_status WHERE table_name = 'xkcd_records'"
+        sql_query = "SELECT MAX(max_value) FROM etl.load_status WHERE table_name = 'xkcd_webcomics'"
         cursor = conn.cursor()
         cursor.execute(sql_query)
         result = cursor.fetchone()
@@ -74,9 +74,13 @@ def get_xkcd_data():
             print("An error occurred:", e)
 
     def validate_df(df):
-        expected_columns = ['month', 'num', 'link', 'year', 'news', 'safe_title', 'transcript', 'alt', 'img', 'title',
+        expected_columns = ['month', 'num', 'year', 'safe_title', 'transcript', 'alt', 'img', 'title',
                             'day']
         passed_columns = df.columns.tolist()
+
+        for col in expected_columns:
+            if (col in passed_columns) and (df[col].values == ''):
+                df[col] = None
 
         if expected_columns == passed_columns:
             # print('Check passed')
@@ -139,8 +143,10 @@ def get_xkcd_data():
         min_value = df['num'].min()
         max_value = df['num'].max()
         executed_at = datetime.utcnow()
+        procedure_name = 'get_xkcd_data'
         df = pd.DataFrame([{
             'load_status_key': key,
+            'procedure_name': procedure_name,
             'table_name': table_name,
             'count_records': rows,
             'min_value': min_value,
