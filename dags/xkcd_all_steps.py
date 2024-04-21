@@ -17,15 +17,14 @@ default_args = {
     'retries': 0,
     'retry_delay': timedelta(minutes=5),
 }
-
-
 @dag(
     default_args=default_args,
     description='DAG to extract XKCD data',
     schedule_interval='59 23 * * 1,3,5',
     catchup=False
 )
-def get_test_one():
+def xkcd_all_steps():
+
     def find_max_value():
         url = 'https://xkcd.com/info.0.json'
         header = {'Content-Type': 'application/json'}
@@ -50,7 +49,7 @@ def get_test_one():
         cursor = conn.cursor()
         cursor.execute(sql_query)
         result = cursor.fetchone()
-        key_value = result[0] + 1 if result[0] is not None else 0
+        key_value = result[0]+1 if result[0] is not None else 0
         cursor.close()
         conn.close()
         return key_value
@@ -114,7 +113,7 @@ def get_test_one():
 
     def process_data(**kwargs):
         ti = kwargs['ti']
-        df = ti.xcom_pull(task_ids='fetch_xkcd_data_loop')
+        df = ti.xcom_pull(task_ids='ingest_xkcd_data')
         df = df.assign(
             cost_eur=df['title'].apply(lambda x: len(str(x.replace(' ', '')))) * 5,
             created_at=pd.to_datetime(
@@ -165,40 +164,9 @@ def get_test_one():
         max_value = ti.xcom_pull(task_ids='fetch_max_value')
         last_value = ti.xcom_pull(task_ids='fetch_last_value')
         if max_value > last_value:
-            return 'fetch_xkcd_data_loop'
+            return 'ingest_xkcd_data'
         else:
             return 'end_pipeline'
-
-    def get_sample_data():
-        conn = PostgresHook(postgres_conn_id='postgres_default').get_conn()
-        sql_query = "select num , created_at from public.xkcd_webcomics xr"
-        cursor = conn.cursor()
-        cursor.execute(sql_query)
-        data = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        df = pd.DataFrame(data, columns=columns)
-        cnt = np.random.randint(1, 50)
-        reviews_df = df.sample(n=cnt)
-        reviews_df.reset_index(drop=True, inplace=True)
-        cursor.close()
-        conn.close()
-        return reviews_df
-
-    def generate_ratings():
-        reviews_df = get_sample_data()
-        reviews_df['rating'] = reviews_df.apply(lambda x: (float(np.random.randint(2, 20)) / 2.0), axis=1)
-        reviews_df['review_date'] = reviews_df.apply(lambda x: x.created_at + timedelta(days=np.random.randint(200)),
-                                                     axis=1)
-        reviews_df = reviews_df.drop(['created_at'], axis=1)
-        reviews_df['snapshot_date'] = datetime.utcnow()
-        table_name = 'reviews'
-        try:
-            print("############### Loading to table : ", table_name)
-            pg_hook = PostgresHook(postgres_conn_id='postgres_default')
-            pg_hook.insert_rows(table=table_name, rows=reviews_df.values.tolist())
-        except Exception as e:
-            print(f"Error occurred while loading data to PostgreSQL: {str(e)}")
-            raise e
 
     def update_xkcd_table_values():
         conn = PostgresHook(postgres_conn_id='postgres_default').get_conn()
@@ -208,6 +176,47 @@ def get_test_one():
         cursor.close()
         conn.close()
 
+    fetch_max_value = PythonOperator(
+        task_id='fetch_max_value',
+        python_callable=find_max_value,
+    )
+
+    fetch_last_value = PythonOperator(
+        task_id='fetch_last_value',
+        python_callable=find_last_value,
+    )
+
+    branching = BranchPythonOperator(
+        task_id='branching',
+        provide_context=True,
+        python_callable=comparison_result,
+    )
+
+    ingest_xkcd_data = PythonOperator(
+        task_id='ingest_xkcd_data',
+        provide_context=True,
+        python_callable=fetch_xkcd_data_loop
+    )
+
+    process_data_task = PythonOperator(
+        task_id='process_data',
+        provide_context=True,
+        python_callable=process_data,
+    )
+
+    load_to_db_task = PythonOperator(
+        task_id='load_to_db',
+        provide_context=True,
+        python_callable=load_to_db,
+        op_kwargs={'table_name': 'xkcd_webcomics'}
+    )
+
+    write_etl_status_task = PythonOperator(
+        task_id='write_etl_status',
+        provide_context=True,
+        python_callable=write_etl_status,
+        op_kwargs={'table_name': 'xkcd_webcomics'}
+    )
 
     update_xkcd_table = PythonOperator(
         task_id='update_xkcd_table_values',
@@ -219,7 +228,12 @@ def get_test_one():
         task_id='end_pipeline',
     )
 
-    update_xkcd_table >> end_pipeline
+    fetch_max_value >> fetch_last_value >> branching
 
+    branching >> ingest_xkcd_data
 
-dag = get_test_one()
+    ingest_xkcd_data >> process_data_task >> load_to_db_task >> write_etl_status_task >> update_xkcd_table >> end_pipeline
+
+    branching >> end_pipeline
+
+dag = xkcd_all_steps()
