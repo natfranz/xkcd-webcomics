@@ -52,13 +52,15 @@ where
 
 -------Calculate count of added records
 
-	select count(a.num) into insert_count_reviews
+	select count(a.num) 
 	from xkcd_reviews_temp a
-	inner join public.xkcd_webcomics b on a.num=b.num and (a.review_count<>b.review_count or a.review_average<>b.review_average);
+	left join public.xkcd_webcomics b on a.num=b.num and (a.review_count<>b.review_count or a.review_average<>b.review_average)
+	where b.review_count is null or b.review_average is null;
 
-	select count(a.num) into insert_count_views
+	select count(a.num) into insert_count_views 
 	from xkcd_daily_views_temp a
-	inner join public.xkcd_webcomics b on a.num=b.num and a.total_views<>b.total_views;
+	left join public.xkcd_webcomics b on a.num=b.num and a.total_views<>b.total_views
+	where b.total_views is null;
 
 
 -------Insert entry to ETL procedures table
