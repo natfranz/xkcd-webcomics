@@ -54,11 +54,11 @@ where
 
 	select count(a.num) into insert_count_reviews
 	from xkcd_reviews_temp a
-	left join public.xkcd_webcomics b on a.num=b.num and (a.review_count<>b.review_count or a.review_average<>b.review_average);
+	inner join public.xkcd_webcomics b on a.num=b.num and (a.review_count<>b.review_count or a.review_average<>b.review_average);
 
 	select count(a.num) into insert_count_views
 	from xkcd_daily_views_temp a
-	left join public.xkcd_webcomics b on a.num=b.num and a.total_views<>b.total_views;
+	inner join public.xkcd_webcomics b on a.num=b.num and a.total_views<>b.total_views;
 
 
 -------Insert entry to ETL procedures table
