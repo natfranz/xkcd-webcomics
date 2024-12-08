@@ -19,11 +19,11 @@ How it works
 ================
 You can execute the process manually by running the scripts in the `scr` folder, or run it in a local Airflow environment.
 
-In case of issues with running Airflow locally, create a new project and initialize new Astro environment by using the command:
+To initialize the Astro environment for the first time, run the following command:
 ```sh
     astro dev init
 ```
-Add dag files to your project, and start Astro:
+To start Astro:
 ```sh
     astro dev start
 ```
@@ -33,3 +33,9 @@ To pause all Docker containers running your local Airflow environment, run the c
 ```sh
     astro dev stop
 ```
+
+What it does
+================
+The ETL process fetches data from Xkcd. It checks whether any new comics have been published. If so, it processes them and writes them to a database. A stored procedure is used to combine comics data with reviews and views data. Aggregated results are written to a table, which is consumed by users via a view.
+
+![img.png](img.png)
