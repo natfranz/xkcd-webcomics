@@ -8,7 +8,6 @@ from include.scr.comics.get_xkcd_data import find_max_value, find_last_value, fe
 from include.scr.comics.load_to_db import load_to_db
 
 default_args = {
-    'owner': 'Natalia',
     'depends_on_past': False,
     'start_date': datetime(2024, 4, 16),
     'retries': 0,
